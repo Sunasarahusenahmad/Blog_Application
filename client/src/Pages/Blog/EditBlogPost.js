@@ -1,26 +1,27 @@
 import axios from "axios";
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import { NavLink, useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useState, useRef } from "react";
+import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebars from "../../Layout/Sidebars";
-import { EditorState, convertToRaw, convertFromRaw } from 'draft-js';
+import { EditorState, convertToRaw, convertFromRaw, ContentState } from 'draft-js';
 import { Editor } from 'react-draft-wysiwyg';
 import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import { convertToHTML } from 'draft-convert';
+import htmlToDraft from 'html-to-draftjs';
 import slugify from 'slugify';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogTitle from '@mui/material/DialogTitle';
 
 
-const AddBlogPost = () => {
+
+const EditBlogPost = () => {
+
+
+
+    const location = useLocation();
     const navigate = useNavigate();
+
+
     // Store Input Date in this State
     const [blogTitle, setBlogTitle] = useState("");
     const [blogDesc, setBlogDesc] = useState("");
-    const [blogSlug, setBlogSlug] = useState('');
     const [blogContent, setBlogContent] = useState("");
     const [blogAuthor, setBlogAuthor] = useState("");
     const [blogPublishDate, setBlogPublishDate] = useState("");
@@ -28,61 +29,11 @@ const AddBlogPost = () => {
     const [blogCategory, setBlogCategory] = useState("");
     const [blogKeywords, setBlogKeywords] = useState([]);
     const [blogTags, setBlogTags] = useState("");
-    // const [blogStatus, setBlogStatus] = useState(1);
+    const [blogSlug, setBlogSlug] = useState('');
+
 
     // Store the Category Data in this State
     const [category, setCategory] = useState([]);
-
-    // Get Category Data
-    const getData = async () => {
-        try {
-            const res = await axios.get(`/getblogcategory`);
-            setCategory(res.data);
-            console.log(res.data);
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
-
-    const [editorState, setEditorState] = useState(() =>
-        EditorState.createEmpty()
-    );
-    const [convertedContent, setConvertedContent] = useState(null);
-
-
-    const onEditorStateChange = (newEditorState) => {
-        setEditorState(newEditorState);
-    };
-
-
-
-    const blockToHTML = (block) => {
-        if (block.type === 'code') {
-            return <code>{block.text}</code>;
-        }
-        // Handle other block types if needed
-    };
-
-    const options = {
-        blockToHTML,
-    };
-
-    // ...
-
-    useEffect(() => {
-        getData();
-
-        const html = convertToHTML(options)(editorState.getCurrentContent());
-        setConvertedContent(html);
-
-    }, [editorState]);
-
-
-    const sate = () => {
-        console.log(convertedContent);
-    }
-
 
 
 
@@ -110,6 +61,89 @@ const AddBlogPost = () => {
     }
 
 
+    // Get Category Data
+    const getData = async () => {
+        try {
+            const res = await axios.get(`/getblogcategory`);
+            setCategory(res.data);
+            console.log(res.data);
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
+
+    //get blog detail
+    const getBlogDetail = async () => {
+        try {
+            const res = await axios.get(`/getblogpostdetail/${location.state.id}`);
+            setBlogTitle(res.data[0].blog_title)
+            setBlogDesc(res.data[0].blog_description)
+            setBlogContent(res.data[0].blog_content)
+            setBlogAuthor(res.data[0].blog_author)
+            setBlogPublishDate(res.data[0].blog_publish_date)
+            setBlogCategory(res.data[0].blog_category)
+            setBlogImage(res.data[0].blog_image);
+            const str = res.data[0].blog_keywords;
+            setBlogKeywords(str.split(","))
+            setBlogTags(res.data[0].blog_tags)
+            setBlogSlug(res.data[0].blog_slug)
+            console.log(res.data[0])
+
+        } catch (error) {
+            window.alert(error);
+        }
+    }
+
+
+    const blocksFromHtml = htmlToDraft(location.state.content);
+    const { contentBlocks, entityMap } = blocksFromHtml;
+    const contentState = ContentState.createFromBlockArray(contentBlocks, entityMap);
+
+    const [editorState, setEditorState] = useState(() =>
+        EditorState.createWithContent(contentState)
+    );
+    const [convertedContent, setConvertedContent] = useState(null);
+
+
+    const onEditorStateChange = (newEditorState) => {
+        setEditorState(newEditorState);
+    };
+
+
+    useEffect(() => {
+        getBlogDetail();
+        getData();
+    }, []); // Empty dependency array
+
+
+
+
+    const blockToHTML = (block) => {
+        if (block.type === 'code') {
+            return <div><code>{block.text}</code></div>;
+        }
+        // Handle other block types if needed
+    };
+
+    const options = {
+        blockToHTML,
+    };
+
+    // ...
+
+
+
+
+    useEffect(() => {
+        const html = convertToHTML(options)(editorState.getCurrentContent());
+        setConvertedContent(html);
+
+    }, [editorState]);
+
+
+
+
     // Save the data in database
     const savedata = async (e, blogStatus) => {
         e.preventDefault();
@@ -127,15 +161,15 @@ const AddBlogPost = () => {
             formdata.append("blogCategory", blogCategory);
             formdata.append("blogKeywords", blogKeywords);
             formdata.append("blogTags", blogTags);
-            formdata.append("blogStatus", blogStatus);
             formdata.append("blogSlug", blogSlug);
+            formdata.append("blogStatus", blogStatus);
 
-            const res = axios.post("/addblogpost", formdata);
+            const res = axios.patch(`/editblogpost/${location.state.id}`, formdata);
 
             if (!res) {
-                window.alert("Blog is not Inserted 😂");
+                window.alert("Blog not Updated 😂");
             } else {
-                window.alert("Blog is Inserted Successfully 👍");
+                window.alert("Blog updated Successfully 👍");
                 navigate('/allblogpost', { replace: true })
             }
         } catch (e) {
@@ -143,6 +177,8 @@ const AddBlogPost = () => {
         }
     };
 
+
+    
 
 
     const generateSlug = (blogTitle) => {
@@ -158,7 +194,7 @@ const AddBlogPost = () => {
 
     const checkSlugAvailability = async (slug) => {
         try {
-            const response = await axios.get(`/checkSlugAvailability/${slug}`);
+            const response = await axios.get(`/checkSlugAvailability/${slug}/${location.state.id}`);
             const { isAvailable } = response.data;
 
             // Handle the response accordingly
@@ -168,7 +204,7 @@ const AddBlogPost = () => {
                 console.log("Slug is available");
             } else {
                 // Slug is not available
-                console.log("Slug is not available");
+                console.log("Slug is same as original");
             }
         } catch (error) {
             // Handle any errors
@@ -178,116 +214,23 @@ const AddBlogPost = () => {
 
     const incrementSlug = (slug) => {
         const lastChar = slug[slug.length - 1];
-
+        
         if (!isNaN(lastChar)) {
-            // Last character is a number, increment it by 1
-            const newLastChar = parseInt(lastChar, 10) + 1;
-            setBlogSlug(slug.slice(0, -1) + newLastChar);
+          // Last character is a number, increment it by 1
+          const newLastChar = parseInt(lastChar, 10) + 1;
+          setBlogSlug(slug.slice(0, -1) + newLastChar);
         } else {
-            // Last character is an alphabet, append '1' to the slug
-            setBlogSlug(slug + '1');
+          // Last character is an alphabet, append '1' to the slug
+          setBlogSlug(slug + '1');
         }
-    };
-
+      };
+      
 
 
     useEffect(() => {
         checkSlugAvailability(blogSlug);
     }, [blogSlug]);
 
-    // / upload our own server
-    // uploadCallback = (file) => {
-    //     return new Promise((resolve, reject) => {
-    //        const data = new FormData();
-    //        data.append("storyImage", file)
-    //        axios.post(Upload file API call, data).then(responseImage => {
-    //             resolve({ data: { link: PATH TO IMAGE ON SERVER } });
-    //        })
-    //     });
-    // }
-
-    // const uploadimagecallback = () => {}
-    //  const uploadFile = (file) => {
-    //     return new Promise(
-    //         (resolve, reject) => {
-
-
-    //             const xhr = new XMLHttpRequest();
-    //             xhr.open('POST', 'https://api.imgur.com/3/image');
-    //             xhr.setRequestHeader('Authorization', 'Client-ID 506e1a6dc89c9ab');
-    //             const data = new FormData();
-    //             data.append('image', file);
-    //             xhr.send(data);
-    //             xhr.addEventListener('load', () => {
-    //                 const res = JSON.parse(xhr.responseText);
-    //                 console.log(res);
-    //                 resolve(res);
-    //             })
-
-    //             xhr.addEventListener('error', () => {
-    //                 const error = JSON.parse(xhr.responseText);
-    //                 console.log(error);
-    //                 reject(error);
-    //             })
-    //         }
-    //     );
-    // }
-
-
-
-
-    const [open, setOpen] = React.useState(false);
-    const [scroll, setScroll] = React.useState('paper');
-
-    const handleClickOpen = (scrollType) => () => {
-        setOpen(true);
-        setScroll(scrollType);
-    };
-
-    const handleClose = () => {
-        setOpen(false);
-    };
-
-    const descriptionElementRef = React.useRef(null);
-    React.useEffect(() => {
-        if (open) {
-            const { current: descriptionElement } = descriptionElementRef;
-            if (descriptionElement !== null) {
-                descriptionElement.focus();
-            }
-        }
-    }, [open]);
-
-    const [categoryName, setCategoryName] = useState("");
-    const [categoryDesc, setCategoryDesc] = useState("");
-    const [subCategory, setSubCategory] = useState(null);
-    const saveblogcategory = async (e) => {
-        e.preventDefault();
-        const team = {
-            categoryName: categoryName,
-            categoryDesc: categoryDesc,
-            subCategory: subCategory,
-        };
-        console.log(team);
-        try {
-            await axios
-                .post("/addblogcategory", team)
-                .then((res) => {
-                    console.log(res);
-                    window.alert("Blog Category Added Successfully");
-                    setOpen(false);
-                    setCategoryName('')
-                    setCategoryDesc('')
-                    setSubCategory('')
-                    getData()
-                })
-                .catch((e) => {
-                    console.log(e);
-                });
-        } catch (error) {
-            console.log(error);
-        }
-    };
 
     return (
         <>
@@ -332,7 +275,7 @@ const AddBlogPost = () => {
                     <Sidebars />
                     <div class="main-panel">
                         <div class="content-wrapper">
-                            <p class=" pb-1" style={{ fontSize: 20, fontWeight: "bold" }}>Add New Blog Post </p>
+                            <p class=" pb-1" style={{ fontSize: 20, fontWeight: "bold" }}>Edit Blog Post </p>
                             <form
                                 encType="multipart/form-data"
                                 method="POST"
@@ -350,31 +293,23 @@ const AddBlogPost = () => {
                                                             type="text"
                                                             value={blogTitle}
                                                             onChange={(e) => {
+                                                                console.log(blogTitle)
                                                                 setBlogTitle(e.target.value);
-                                                                generateSlug(e.target.value)
                                                             }}
                                                             required
                                                         />
+                                                        <div style={{ border: '1px solid #CCCCCC', minHeight: 300, backgroundColor: "#fff" }}>
+                                                            <Editor
+                                                                editorState={editorState}
+                                                                onEditorStateChange={onEditorStateChange}
+                                                                toolbarClassName="toolbarClassName"
+                                                                wrapperClassName="wrapperClassName"
+                                                                editorClassName="editorClassName"
+                                                            />
+                                                        </div>
                                                         <label for="name">Blog Title</label>
                                                     </div>
 
-                                                    <div style={{ border: '1px solid #CCCCCC', minHeight: 300, backgroundColor: "#fff" }}>
-                                                        <Editor
-                                                            editorState={editorState}
-                                                            onEditorStateChange={onEditorStateChange}
-                                                            toolbarClassName="toolbarClassName"
-                                                            wrapperClassName="wrapperClassName"
-                                                            editorClassName="editorClassName"
-                                                        // toolbar={{
-                                                        //     image: {
-                                                        //         uploadCallback: uploadFile,
-                                                        //         alt: { present: true, mandatory: false },
-                                                        //         previewImage: true,
-                                                        //         inputAccept: 'image/gif,image/jpeg,image/jpg,image/png,image/svg',
-                                                        //     }
-                                                        // }}
-                                                        />
-                                                    </div>
 
 
                                                     <div class="group mt-4">
@@ -387,7 +322,7 @@ const AddBlogPost = () => {
                                                             }}
                                                             required
                                                         />
-                                                        <label for="name">Meta Description</label>
+                                                        <label for="name">Blog Description</label>
                                                     </div>
                                                 </div>
                                             </div>
@@ -426,6 +361,11 @@ const AddBlogPost = () => {
                                                             <label for="name">Blog Publish Date</label>
                                                         </div>
 
+                                                        <div className="group mb-4">
+                                                            <label for="name" className="px-3">Old Image</label>
+                                                            <img src={(`./uploads/Blog/${blogImage}`)} style={{ height: "200px", width: "200px" }} />
+                                                        </div>
+
                                                         <div class="group">
                                                             <input
                                                                 placeholder=""
@@ -439,10 +379,9 @@ const AddBlogPost = () => {
                                                             <label for="name">Blog Image</label>
                                                         </div>
 
-                                                        <div className="group ">
+                                                        <div className="group">
                                                             <label for="exampleInputEmail1">Select Blog Category</label>
                                                             <select
-                                                                className="mb-0"
                                                                 name="blog_category"
                                                                 placeholder=""
                                                                 id="blog_category"
@@ -460,87 +399,8 @@ const AddBlogPost = () => {
                                                                     );
                                                                 })}
                                                             </select>
-                                                            <NavLink onClick={handleClickOpen('paper')}><div className="mb-4" style={{ fontSize: 14 }}> Add New Category</div></NavLink>
                                                         </div>
-                                                        <Dialog
-                                                            open={open}
-                                                            fullWidth={true}
-                                                            onClose={handleClose}
-                                                            scroll={scroll}
-                                                            aria-labelledby="scroll-dialog-title"
-                                                            aria-describedby="scroll-dialog-description"
-                                                        >
-                                                            <DialogTitle id="scroll-dialog-title">Add New Category</DialogTitle>
-                                                            <DialogContent dividers={scroll === 'paper'}>
-                                                                <DialogContentText
-                                                                    id="scroll-dialog-description"
-                                                                    ref={descriptionElementRef}
-                                                                    tabIndex={-1}
-                                                                >
-                                                                    <div class="dash-content px-3" >
-                                                                        <div class="card rounded-0">
-                                   
-                                                                            <form class="form" >
-                                                                                <div class="group">
-                                                                                    <input
-                                                                                        placeholder=""
-                                                                                        type="text"
-                                                                                        value={categoryName}
-                                                                                        onChange={(e) => {
-                                                                                            setCategoryName(e.target.value);
-                                                                                        }}
-                                                                                        required
-                                                                                    />
-                                                                                    <label for="name">Blog Category Name</label>
-                                                                                </div>
 
-                                                                                <div className="group">
-                                                                                    <label for="exampleInputEmail1">Blog Sub Category</label>
-                                                                                    <select
-                                                                                        name="blog_subcategory"
-                                                                                        placeholder=""
-                                                                                        id="blog_subcategory"
-                                                                                        value={subCategory}
-                                                                                        onChange={(e) => {
-                                                                                            setSubCategory(e.target.value);
-                                                                                        }}
-                                                                                        required
-                                                                                    >
-                                                                                        <option value="Null">Null</option>
-                                                                                        {category.map((e) => {
-                                                                                            return (
-                                                                                                <>
-                                                                                                    <option value={e.id}>{e.category_name}</option>
-                                                                                                </>
-                                                                                            );
-                                                                                        })}
-                                                                                    </select>
-                                                                                </div>
-
-                                                                                <div class="group">
-                                                                                    <input
-                                                                                        placeholder=""
-                                                                                        type="text"
-                                                                                        value={categoryDesc}
-                                                                                        onChange={(e) => {
-                                                                                            setCategoryDesc(e.target.value);
-                                                                                        }}
-                                                                                        required
-                                                                                    />
-                                                                                    <label for="name">Category Description</label>
-                                                                                </div>
-
-
-                                                                            </form>
-                                                                        </div>
-                                                                    </div>
-                                                                </DialogContentText>
-                                                            </DialogContent>
-                                                            <DialogActions>
-                                                                <Button variant="outlined" onClick={handleClose}>Cancel</Button>
-                                                                <Button variant="contained" onClick={saveblogcategory}>Submit</Button>
-                                                            </DialogActions>
-                                                        </Dialog>
                                                         <div class="group">
                                                             <input
                                                                 type="text"
@@ -561,7 +421,7 @@ const AddBlogPost = () => {
                                                             </div>
                                                         </div>
 
-                                                        <div class="group mt-3">
+                                                        <div class="group">
                                                             <input
                                                                 placeholder=""
                                                                 type="text"
@@ -575,6 +435,7 @@ const AddBlogPost = () => {
                                                         </div>
 
 
+                                                        
                                                         <div class="group mt-3">
                                                             <input
                                                                 placeholder=""
@@ -588,6 +449,7 @@ const AddBlogPost = () => {
                                                             />
                                                             <label for="name">Blog Slug</label>
                                                         </div>
+
 
                                                         <div className="row">
                                                             <button className="col-lg-5 ml-2" type="submit" onClick={(e) => savedata(e, 1)}>Publish</button>
@@ -608,4 +470,125 @@ const AddBlogPost = () => {
     );
 };
 
-export default AddBlogPost;
+export default EditBlogPost;
+
+// Second Style Add Blog Post Code here.............
+
+//******* Set State Code ********//
+
+// const [blogPost, setBlogPost] = useState({
+//     blog_title: "",
+//     blog_description: "",
+//     blog_content: "",
+//     blog_author: "",
+//     blog_publish_date: "",
+//     blog_image: "",
+//     blog_category: "",
+//     blog_keywords: "",
+//     blog_tags: "",
+// });
+
+//********* handle inputs code **********//
+
+// let name, value;
+// const handleInputs = (e) => {
+//     name = e.target.name;
+//     value = e.target.value;
+
+//     setBlogPost({ ...blogPost, [name]: value });
+//     console.log(blogPost);
+// };
+
+//****** handle image Code ******//
+
+// const handleImage = (e) => {
+//     setBlogPost({ ...blogPost, blog_image: e.target.files[0] });
+// };
+
+// ******  Form Data Append Code ******* //
+
+// formdata.append("blog_title", blogPost.blog_title);
+// formdata.append("blog_description", blogPost.blog_description);
+// formdata.append("blog_content", blogPost.blog_content);
+// formdata.append("blog_author", blogPost.blog_author);
+// formdata.append("blog_publish_date", blogPost.blog_publish_date);
+// formdata.append("blog_image", blogPost.blog_image);
+// formdata.append("blog_category", blogPost.blog_category);
+// formdata.append("blog_keywords", blogPost.blog_keywords);
+// formdata.append("blog_tags", blogPost.blog_tags);
+
+//******* Input Field on this Code *******//
+
+{
+    /* <div class="group">
+            <input placeholder="" type="text" name='blog_title' onChange={handleInputs} required />
+            <label for="name">Blog Title</label>
+        </div> */
+}
+
+{
+    /* <div class="group">
+            <input placeholder="" type="text" name='blog_description' onChange={handleInputs} required />
+            <label for="name">Blog Desc</label>
+        </div> */
+}
+
+{
+    /* <div class="group">
+            <input placeholder="" type="text" name='blog_content' onChange={handleInputs} required />
+            <label for="name">Blog Content</label>
+        </div> */
+}
+
+{
+    /* <div class="group">
+            <input placeholder="" type="text" name='blog_author' onChange={handleInputs} required />
+            <label for="name">Blog Author</label>
+        </div> */
+}
+
+{
+    /* <div class="group">
+            <input placeholder="" type="date" name='blog_publish_date' onChange={handleInputs} required />
+            <label for="name">Blog Date</label>
+        </div> */
+}
+
+{
+    /* <div class="group">
+            <input placeholder="" name="blog_image" type="file" onChange={handleImage} required />
+            <label for="name">Blog Image</label>
+        </div> */
+}
+
+{
+    /* <div className="group">
+            <label for="exampleInputEmail1">Select Blog Category</label>
+            <select name="blog_category" placeholder='' id="blog_category" onChange={handleInputs} >
+                <option value="Null">Null</option>
+                {
+                    post.map((e) => {
+                        return (
+                            <>
+                                <option value={e.id}>{e.category_name}</option>
+                            </>
+                        )
+                    })
+                }
+            </select>
+        </div> */
+}
+
+{
+    /* <div class="group">
+      <input placeholder="" type="text" name='blog_keywords' onChange={handleInputs} required />
+      <label for="name">Blog Keywords</label>
+  </div> */
+}
+
+{
+    /* <div class="group">
+      <input placeholder="" type="text" name='blog_tags' onChange={handleInputs} required />
+      <label for="name">Blog Tags</label>
+  </div> */
+}

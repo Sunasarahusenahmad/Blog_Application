@@ -1,34 +1,21 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import Sidebars from "../../Layout/Sidebars";
 
-const AllBlogPost = () => {
-
+const AllTrashBlogPost = () => {
   const [blogCategory, setBlogCategory] = useState([]);
   const [blogPost, setBlogPost] = useState([]);
   const [searchFilter, setSearchFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [pb, setPb] = useState(0)
-  const [df, setDf] = useState(0)
-  let published = 0;
-  let draft = 0;
 
   const getPosts = async () => {
     try {
-      const res = await axios.get('/getblogposts');
+      const res = await axios.get('/gettrashblogpost');
       setBlogPost(res.data)
-      console.log(res.data);
 
-      res.data.map((e, idx) => {
-        if (e.blog_status) {
-          published = published + 1;
-        } else {
-          draft = draft + 1;
-        }
-      })
-      setPb(published)
-      setDf(draft)
+      setPb(res.data.length)
     } catch (err) {
       console.log(err);
     }
@@ -50,9 +37,9 @@ const AllBlogPost = () => {
     getData();
   }, []);
 
-  const trashBlogPost = async (id) => {
+  const trashBackBlogPost = async (id) => {
     try {
-      const res = await axios.patch(`/trashblogpost/${id}`);
+      const res = await axios.patch(`/trashbackblogpost/${id}`);
       getPosts();
     } catch (error) {
       window.alert(error);
@@ -72,6 +59,33 @@ const AllBlogPost = () => {
     currentPage * itemPerPage,
     (currentPage + 1) * itemPerPage
   );
+
+
+  const DeletePost = async (id) => {
+    try {
+        const res = await axios.delete(`/deletepost/${id}`);
+        getPosts();
+      } catch (error) {
+        window.alert(error);
+      }
+  }
+
+
+  const DeleteAlert = async (id) =>{
+    let title;
+    try {
+        const res = await axios.get(`/getblogpostdetail/${id}`);
+        title = res.data[0].blog_title;
+      } catch (error) {
+        window.alert(error);
+    }
+     let x =window.prompt(`Enter Title Name = ${title} `, '');
+     if(x==title){
+        DeletePost(id);
+     }else{
+        window.alert("Oops ! Title is Incorrect")
+     }
+  }
 
   return (
     <>
@@ -150,21 +164,16 @@ const AllBlogPost = () => {
 
                   <div class="activity">
 
-                    <p class="mb-3" style={{ fontSize: 20, fontWeight: "bold" }}>All Blog Post </p>
+                    <p class="mb-3" style={{ fontSize: 20, fontWeight: "bold" }}>All Trash Blog Post </p>
 
-                
-                    <div className="d-flex" style={{ fontSize: "14px" }}>
-                      <NavLink to={'/allblogpost'} className='text-decoration-none text-dark'><p>All ({df + pb})</p></NavLink>
-                      <p className="mx-2">|</p>
-                      <NavLink to={'/allpublishedblogpost'} className='text-decoration-none text-dark'><p>Published ({pb})</p></NavLink>
-                      <p className="mx-2">|</p>
-                      <NavLink to={'/alldraftblogpost'} className='text-decoration-none text-dark'><p>Draft ({df})</p></NavLink>
-                      <p className="mx-2">|</p>
-                      <NavLink to={'/alltrashblogpost'} className='text-decoration-none'><p className="text-danger">Trash</p></NavLink>
-                    </div>
+                  <div className="d-flex" style={{fontSize:"14px"}}>
+                          <NavLink to={'/allblogpost'} className='text-decoration-none'><p className="text-primary"> <i class="bi bi-arrow-left"></i> &nbsp; Back</p></NavLink>
+                          <p className="mx-2">|</p>
+                          <p className="text-danger" >Trash ({pb})</p>
+                        
 
-                
-                    <table class="table table-striped" style={{ border: "1px solid #C3C4C7", backgroundColor: "#fff" }}>
+                  </div>
+                    <table class="table table-striped" style={{border:"1px solid #C3C4C7", backgroundColor:"#fff"}}>
                       <thead>
                         <tr>
                           <th scope="col">Blog Title</th>
@@ -185,17 +194,18 @@ const AllBlogPost = () => {
                             .map((e, idx) => {
                               let flag = 0;
 
-
-                              return (
-                                <>
+                                
+                                return (
+                                  <>
                                   <tr className="blog-title">
-                                    <td style={{ width: "33%" }}>
+                                    <td  style={{width:"33%"}}>
                                       {e.blog_title}
                                       <p className="p-0 m-0 tred " style={{ fontSize: '14px' }}>
                                         <div className="d-flex">
 
-                                          <Link to={`/editblogpost`} state={{ id: e.id, content: e.blog_content }} className='text-decoration-none'><p className="p-0 m-0">Edit | </p></Link>
-                                          <p className="text-danger p-0 m-0" onClick={() => { trashBlogPost(e.id) }}>&nbsp;Trash</p>
+                                          <p className=" p-0 m-0" onClick={() => { trashBackBlogPost(e.id) }}> Restore</p>
+                                          <p className="mx-1 m-0 p-0">|</p>
+                                          <p className="p-0 m-0 text-danger" onClick={() => { DeleteAlert(e.id) }}>Permenently Delete </p>
                                         </div>
                                       </p>
                                     </td>
@@ -280,4 +290,4 @@ const AllBlogPost = () => {
   );
 };
 
-export default AllBlogPost;
+export default AllTrashBlogPost;
